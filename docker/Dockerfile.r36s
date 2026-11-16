@@ -1,0 +1,23 @@
+# Scratch Everywhere! for R36S (RK3326, aarch64 Linux, SDL2).
+# Build on an arm64 host (or with QEMU/buildx --platform linux/arm64):
+#   docker buildx build --platform linux/arm64 -f docker/Dockerfile.r36s --target exporter -o type=local,dest=. .
+# NOTE: uses the device's own libSDL2 at runtime (needs KMSDRM/Mali support), so SDL2 is linked dynamically.
+FROM --platform=linux/arm64 gcc:14 AS main_builder
+ENV CATALOG_NON_INTERACTIVE=1
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake git ca-certificates libmbedtls-dev libdbus-1-dev \
+    libsdl2-dev libasound2-dev
+
+COPY . .
+
+RUN mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release \
+      -DSE_RENDERER=sdl2 -DSE_WINDOWING=sdl2 -DSE_AUDIO_ENGINE=sdl2 \
+      -DCL_STAGES="system;package;source" \
+      -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc" && \
+    cmake --build . -j 2
+
+FROM scratch AS exporter
+COPY --from=main_builder /app/build/scratch-pc /scratch-r36s

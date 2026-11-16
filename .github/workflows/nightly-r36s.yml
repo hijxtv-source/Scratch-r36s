@@ -1,0 +1,35 @@
+name: R36S Nightly Build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - docker/Dockerfile.r36s
+      - r36s/**
+      - .github/workflows/nightly-r36s.yml
+
+jobs:
+  r36s:
+    name: R36S (Linux aarch64, SDL2)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.r36s
+          target: exporter
+          outputs: type=local,dest=out
+      - name: Package
+        run: |
+          mkdir -p pkg/ScratchEverywhere/scratch-everywhere
+          cp out/scratch-r36s pkg/ScratchEverywhere/
+          cp r36s/ScratchEverywhere.sh pkg/
+          chmod +x pkg/ScratchEverywhere.sh pkg/ScratchEverywhere/scratch-r36s
+          echo "Pon tus .sb3 en ScratchEverywhere/scratch-everywhere/" > pkg/ScratchEverywhere/scratch-everywhere/LEEME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Scratch Everywhere! R36S Nightly
+          path: pkg
