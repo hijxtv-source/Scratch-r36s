@@ -624,7 +624,7 @@ void Renderer_SDL2::renderSprites() {
     drawBlackBars(Sdlrenderer, getWidth(), getHeight());
     Render::renderMonitors();
 
-#if !defined(PLATFORM_HAS_MOUSE) && !defined(PLATFORM_HAS_TOUCH)
+#if !defined(PLATFORM_HAS_TOUCH)
     if (Input::mousePointer.isMoving) {
         SDL_SetRenderDrawColor(Sdlrenderer, 0, 0, 255, 255);
         SDL_Rect rect;

@@ -16,6 +16,7 @@ exec > "$GAMEDIR/log.txt" 2>&1
 
 export SDL_VIDEODRIVER=${SDL_VIDEODRIVER:-kmsdrm}
 export SE_FULLSCREEN=1
+export SE_GAMEPAD_MOUSE=1        # stick derecho = mouse, R2 clic izq., R3 clic der.
 export HOME="$GAMEDIR"            # config y datos quedan junto al port
 [ -n "$sdl_controllerconfig" ] && export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 [ -f "$controlfolder/gamecontrollerdb.txt" ] && export SDL_GAMECONTROLLERCONFIG_FILE="$controlfolder/gamecontrollerdb.txt"

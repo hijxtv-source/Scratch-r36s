@@ -14,3 +14,8 @@ Port basado en la plataforma "pc" (SDL2) de Scratch Everywhere! 1.3 para Linux a
 ## Controles
 Gamepad como en el resto del runtime; modo mouse: mantener L, D-pad mueve, R hace clic.
 Si falla, revisar `ScratchEverywhere/log.txt`.
+
+## Controles en R36S (v2)
+- **Salir:** mantener START + SELECT medio segundo.
+- **Mouse:** stick derecho mueve el cursor (cuadro azul).
+- **R2:** clic izquierdo. **R3** (presionar stick derecho): clic derecho.

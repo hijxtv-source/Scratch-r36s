@@ -41,6 +41,21 @@ extern SDL_GameController *controller;
 #define CONTROLLER_DEADZONE_X 10000
 #define CONTROLLER_DEADZONE_Y 18000
 #define CONTROLLER_DEADZONE_TRIGGER 1000
+#define PADMOUSE_DEADZONE 8000
+#define PADMOUSE_SPEED 7.0f
+#define EXIT_COMBO_FRAMES 30
+
+// Modo "mouse con gamepad" para handhelds sin mouse (R36S, etc.).
+// El launcher lo activa con SE_GAMEPAD_MOUSE=1.
+static bool padMouseEnabled() {
+    static const bool enabled = []() {
+        const char *e = SDL_getenv("SE_GAMEPAD_MOUSE");
+        return e && e[0] == '1';
+    }();
+    return enabled;
+}
+// Posicion del puntero virtual (coordenadas de Scratch, con decimales)
+static float padMouseX = 0.0f, padMouseY = 0.0f;
 #endif
 #ifdef PLATFORM_HAS_TOUCH
 extern bool touchActive;
@@ -94,6 +109,13 @@ std::array<int, 2> InputDevice_SDL2::getTouchPosition() {
         pos[1] = touchPosition.y;
 
     } else {
+#endif
+#if defined(PLATFORM_HAS_MOUSE) && defined(PLATFORM_HAS_CONTROLLER)
+        if (padMouseEnabled()) {
+            pos[0] = static_cast<int>((Input::mousePointer.x * Render::renderScale) + (Render::getWidth() * 0.5f));
+            pos[1] = static_cast<int>((-Input::mousePointer.y * Render::renderScale) + (Render::getHeight() * 0.5f));
+            return pos;
+        }
 #endif
 #ifdef PLATFORM_HAS_MOUSE
         SDL_GetMouseState(&rawMouseX, &rawMouseY);
@@ -243,10 +265,43 @@ void InputDevice_SDL2::getInput() {
     if (joyLeftY < -CONTROLLER_DEADZONE_Y) Input::buttonPress(CONTROLLER_STRINGS[static_cast<int>(SCRATCH_KEY_INDEX::L_STICK_UP)]);
     float joyRightX = SDL_GameControllerGetAxis(controller, SDL_GameControllerAxis::SDL_CONTROLLER_AXIS_RIGHTX);
     float joyRightY = SDL_GameControllerGetAxis(controller, SDL_GameControllerAxis::SDL_CONTROLLER_AXIS_RIGHTY);
-    if (joyRightX > CONTROLLER_DEADZONE_X) Input::buttonPress(CONTROLLER_STRINGS[static_cast<int>(SCRATCH_KEY_INDEX::R_STICK_RIGHT)]);
-    if (joyRightX < -CONTROLLER_DEADZONE_X) Input::buttonPress(CONTROLLER_STRINGS[static_cast<int>(SCRATCH_KEY_INDEX::R_STICK_LEFT)]);
-    if (joyRightY > CONTROLLER_DEADZONE_Y) Input::buttonPress(CONTROLLER_STRINGS[static_cast<int>(SCRATCH_KEY_INDEX::R_STICK_DOWN)]);
-    if (joyRightY < -CONTROLLER_DEADZONE_Y) Input::buttonPress(CONTROLLER_STRINGS[static_cast<int>(SCRATCH_KEY_INDEX::R_STICK_UP)]);
+    const bool padMouse = padMouseEnabled();
+    if (!padMouse) {
+        if (joyRightX > CONTROLLER_DEADZONE_X) Input::buttonPress(CONTROLLER_STRINGS[static_cast<int>(SCRATCH_KEY_INDEX::R_STICK_RIGHT)]);
+        if (joyRightX < -CONTROLLER_DEADZONE_X) Input::buttonPress(CONTROLLER_STRINGS[static_cast<int>(SCRATCH_KEY_INDEX::R_STICK_LEFT)]);
+        if (joyRightY > CONTROLLER_DEADZONE_Y) Input::buttonPress(CONTROLLER_STRINGS[static_cast<int>(SCRATCH_KEY_INDEX::R_STICK_DOWN)]);
+        if (joyRightY < -CONTROLLER_DEADZONE_Y) Input::buttonPress(CONTROLLER_STRINGS[static_cast<int>(SCRATCH_KEY_INDEX::R_STICK_UP)]);
+    }
+
+    // Salir: mantener START + SELECT (BACK) medio segundo
+    static int exitHeld = 0;
+    if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_START) &&
+        SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_BACK)) {
+        if (++exitHeld >= EXIT_COMBO_FRAMES) OS::toExit = true;
+    } else exitHeld = 0;
+
+    // Mouse con stick derecho: R3 = clic derecho, R2 = clic izquierdo
+    if (padMouse) {
+        auto axis = [](float v) {
+            if (v > PADMOUSE_DEADZONE) return (v - PADMOUSE_DEADZONE) / (32767.0f - PADMOUSE_DEADZONE);
+            if (v < -PADMOUSE_DEADZONE) return (v + PADMOUSE_DEADZONE) / (32767.0f - PADMOUSE_DEADZONE);
+            return 0.0f;
+        };
+        padMouseX = static_cast<float>(Input::mousePointer.x);
+        padMouseY = static_cast<float>(Input::mousePointer.y);
+        padMouseX += axis(joyRightX) * PADMOUSE_SPEED;
+        padMouseY -= axis(joyRightY) * PADMOUSE_SPEED;
+        padMouseX = std::clamp(padMouseX, -Scratch::projectWidth * 0.5f, Scratch::projectWidth * 0.5f);
+        padMouseY = std::clamp(padMouseY, -Scratch::projectHeight * 0.5f, Scratch::projectHeight * 0.5f);
+        Input::mousePointer.x = static_cast<int>(padMouseX);
+        Input::mousePointer.y = static_cast<int>(padMouseY);
+        Input::mousePointer.isMoving = true; // dibuja el cursor
+
+        const bool rightClick = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_RIGHTSTICK);
+        const bool leftClick = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > CONTROLLER_DEADZONE_TRIGGER;
+        Input::mousePointer.isPressed = rightClick || leftClick;
+        Input::mousePointer.mouseButton = rightClick ? Input::Mouse::RIGHT : Input::Mouse::LEFT;
+    }
     if (SDL_GameControllerGetAxis(controller, SDL_GameControllerAxis::SDL_CONTROLLER_AXIS_TRIGGERLEFT) > CONTROLLER_DEADZONE_TRIGGER)
         Input::buttonPress(CONTROLLER_STRINGS[static_cast<int>(SCRATCH_KEY_INDEX::LEFT_TRIGGER)]);
     if (SDL_GameControllerGetAxis(controller, SDL_GameControllerAxis::SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > CONTROLLER_DEADZONE_TRIGGER) {
@@ -293,6 +348,12 @@ void InputDevice_SDL2::getInput() {
 #endif
 
 #ifdef PLATFORM_HAS_MOUSE
+#ifdef PLATFORM_HAS_CONTROLLER
+    if (padMouseEnabled()) {
+        BlockExecutor::doSpriteClicking();
+        return;
+    }
+#endif
 
     std::array<int, 2> rawMouse = getTouchPosition();
 
